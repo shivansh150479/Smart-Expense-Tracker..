@@ -3,26 +3,22 @@ from flask import Flask, render_template, request, redirect, url_for
 
 app = Flask(__name__)
 
-# Sample expense data in Rupees
-EXPENSES = [
-    {"category": "Food", "amount": 1200, "note": "Groceries"},
-    {"category": "Entertainment", "amount": 800, "note": "Movie Ticket"},
-    {"category": "Bills", "amount": 3500, "note": "Internet & Electricity"}
-]
-MONTHLY_BUDGET = 10000  # Default budget in ₹
+# Starting with empty expenses and a zero initial budget
+EXPENSES = []
+MONTHLY_BUDGET = 0.0
 
 @app.route("/", methods=["GET", "POST"])
 def index():
     global MONTHLY_BUDGET
 
     if request.method == "POST":
-        # Handle setting a new budget
+        # Handle setting/updating the monthly budget
         if "set_budget" in request.form:
             new_budget = request.form.get("budget")
             if new_budget:
                 MONTHLY_BUDGET = float(new_budget)
 
-        # Handle adding an expense
+        # Handle adding a new expense entry
         elif "add_expense" in request.form:
             category = request.form.get("category")
             amount = request.form.get("amount")
