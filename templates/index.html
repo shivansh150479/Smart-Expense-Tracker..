@@ -1,0 +1,37 @@
+Expense Tracker
+
+
+    Monthly Expense Tracker
+
+    
+        Monthly Budget: ${{ budget }}
+        Total Spent: ${{ total_spent }}
+        Remaining Budget: ${{ remaining_budget }}
+    
+
+    
+
+    Add New Expense
+    
+        Category:
+        
+
+        Amount:
+        
+
+        Note:
+        
+
+        Add Expense
+    
+
+    
+
+    Expense Log
+    
+        {% for expense in expenses %}
+            
+                {{ expense.category }}: ${{ expense.amount }} 
+                {% if expense.note %}({{ expense.note }}){% endif %}
+            
+        {% endfor %}
