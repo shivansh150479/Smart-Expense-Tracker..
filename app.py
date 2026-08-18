@@ -1,22 +1,33 @@
 import os
 import sqlite3
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, session
 
 app = Flask(__name__)
+app.secret_key = "super-secret-key-change-this"
 DB_FILE = "expenses.db"
 
 def init_db():
     with sqlite3.connect(DB_FILE) as conn:
         cursor = conn.cursor()
-        # Table for storing different budget categories/projects
+        # Users Table (Supports Email or Phone)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                identifier TEXT UNIQUE NOT NULL
+            )
+        """)
+        # Budgets linked to User ID
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS budgets (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
                 title TEXT NOT NULL,
-                target_amount REAL DEFAULT 0.0
+                target_amount REAL DEFAULT 0.0,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
             )
         """)
-        # Table for storing individual expenses under specific budgets
+        # Expenses linked to Budget ID
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS expenses (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,99 +42,119 @@ def init_db():
 
 init_db()
 
-@app.route("/", methods=["GET", "POST"])
-def index():
-    user_name = request.args.get("user_name", "")
-    selected_budget_id = request.args.get("budget_id", type=int)
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        name = request.form.get("name")
+        identifier = request.form.get("identifier")  # Email or Phone Number
+        
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, name FROM users WHERE identifier = ?", (identifier,))
+            user = cursor.fetchone()
+            
+            if not user:
+                cursor.execute("INSERT INTO users (name, identifier) VALUES (?, ?)", (name, identifier))
+                conn.commit()
+                user_id = cursor.lastrowid
+            else:
+                user_id = user[0]
+                name = user[1]
+
+            session["user_id"] = user_id
+            session["user_name"] = name
+            return redirect(url_for("dashboard"))
+
+    return render_template("login.html")
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+@app.route("/")
+def dashboard():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    
+    user_id = session["user_id"]
+    
+    with sqlite3.connect(DB_FILE) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT b.id, b.title, b.target_amount, 
+                   COALESCE(SUM(e.amount), 0) AS total_spent
+            FROM budgets b
+            LEFT JOIN expenses e ON b.id = e.budget_id
+            WHERE b.user_id = ?
+            GROUP BY b.id
+            ORDER BY b.id DESC
+        """, (user_id,))
+        budgets = cursor.fetchall()
+
+    return render_template("dashboard.html", user_name=session["user_name"], budgets=budgets)
+
+@app.route("/budget/create", methods=["POST"])
+def create_budget():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    
+    title = request.form.get("title")
+    target = request.form.get("target_amount", 0.0)
+    
+    if title:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO budgets (user_id, title, target_amount) VALUES (?, ?, ?)",
+                (session["user_id"], title, float(target) if target else 0.0)
+            )
+            conn.commit()
+            
+    return redirect(url_for("dashboard"))
+
+@app.route("/budget/<int:budget_id>", methods=["GET", "POST"])
+def budget_detail(budget_id):
+    if "user_id" not in session:
+        return redirect(url_for("login"))
 
     with sqlite3.connect(DB_FILE) as conn:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
         if request.method == "POST":
-            # Action 1: Login / Set User Name
-            if "set_user" in request.form:
-                name = request.form.get("user_name")
-                return redirect(url_for("index", user_name=name))
-
-            # Action 2: Create a New Budget Category (Trip, Mall, etc.)
-            elif "create_budget" in request.form:
-                title = request.form.get("budget_title")
-                target = request.form.get("target_amount", 0.0)
-                if title:
-                    cursor.execute(
-                        "INSERT INTO budgets (title, target_amount) VALUES (?, ?)",
-                        (title, float(target) if target else 0.0)
-                    )
-                    conn.commit()
-                    new_id = cursor.lastrowid
-                    return redirect(url_for("index", user_name=user_name, budget_id=new_id))
-
-            # Action 3: Add Expense to Selected Budget
-            elif "add_expense" in request.form:
-                b_id = request.form.get("budget_id")
+            if "add_expense" in request.form:
                 category = request.form.get("category")
                 amount = request.form.get("amount")
                 note = request.form.get("note")
-
-                if b_id and category and amount:
+                if category and amount:
                     cursor.execute(
                         "INSERT INTO expenses (budget_id, category, amount, note) VALUES (?, ?, ?, ?)",
-                        (int(b_id), category, float(amount), note)
+                        (budget_id, category, float(amount), note)
                     )
                     conn.commit()
-                return redirect(url_for("index", user_name=user_name, budget_id=b_id))
 
-            # Action 4: Delete a Budget
-            elif "delete_budget" in request.form:
-                b_id = request.form.get("budget_id")
-                if b_id:
-                    cursor.execute("DELETE FROM budgets WHERE id = ?", (b_id,))
-                    cursor.execute("DELETE FROM expenses WHERE budget_id = ?", (b_id,))
-                    conn.commit()
-                return redirect(url_for("index", user_name=user_name))
-
-            # Action 5: Delete an Expense
             elif "delete_expense" in request.form:
                 e_id = request.form.get("expense_id")
-                b_id = request.form.get("budget_id")
-                if e_id:
-                    cursor.execute("DELETE FROM expenses WHERE id = ?", (e_id,))
-                    conn.commit()
-                return redirect(url_for("index", user_name=user_name, budget_id=b_id))
+                cursor.execute("DELETE FROM expenses WHERE id = ?", (e_id,))
+                conn.commit()
 
-        # Fetch all budgets list
-        cursor.execute("SELECT * FROM budgets ORDER BY id DESC")
-        all_budgets = cursor.fetchall()
+            return redirect(url_for("budget_detail", budget_id=budget_id))
 
-        # Fetch details for the selected budget
-        current_budget = None
-        expenses = []
-        total_spent = 0.0
-        remaining_budget = 0.0
+        cursor.execute("SELECT * FROM budgets WHERE id = ? AND user_id = ?", (budget_id, session["user_id"]))
+        budget = cursor.fetchone()
+        
+        if not budget:
+            return redirect(url_for("dashboard"))
 
-        if selected_budget_id:
-            cursor.execute("SELECT * FROM budgets WHERE id = ?", (selected_budget_id,))
-            current_budget = cursor.fetchone()
+        cursor.execute("SELECT * FROM expenses WHERE budget_id = ? ORDER BY id DESC", (budget_id,))
+        expenses = cursor.fetchall()
+        total_spent = sum(item["amount"] for item in expenses)
+        remaining = budget["target_amount"] - total_spent
 
-            if current_budget:
-                cursor.execute(
-                    "SELECT * FROM expenses WHERE budget_id = ? ORDER BY id DESC",
-                    (selected_budget_id,)
-                )
-                expenses = cursor.fetchall()
-                total_spent = sum(item["amount"] for item in expenses)
-                remaining_budget = current_budget["target_amount"] - total_spent
-
-    return render_template(
-        "index.html",
-        user_name=user_name,
-        all_budgets=all_budgets,
-        current_budget=current_budget,
-        expenses=expenses,
-        total_spent=total_spent,
-        remaining_budget=remaining_budget
-    )
+    return render_template("budget_detail.html", budget=budget, expenses=expenses, total_spent=total_spent, remaining=remaining)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
