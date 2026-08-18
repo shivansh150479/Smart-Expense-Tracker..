@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <style>
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; }
+        body { background-color: #f1f5f9; color: #0f172a; padding: 20px; max-width: 480px; margin: 0 auto; }
+        .navbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .navbar h1 { font-size: 1.25rem; font-weight: 700; }
+        .logout-btn { color: #ef4444; text-decoration: none; font-size: 0.9rem; font-weight: 600; }
+        .card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03); margin-bottom: 16px; }
+        input { width: 100%; padding: 12px; border: 1.5px solid #e2e8f0; border-radius: 10px; font-size: 0.95rem; margin-top: 6px; margin-bottom: 14px; outline: none; }
+        input:focus { border-color: #2563eb; }
+        .btn { width: 100%; background: #2563eb; color: white; border: none; padding: 12px; border-radius: 10px; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
+        .budget-grid { display: flex; flex-direction: column; gap: 12px; }
+        .budget-card { background: white; border-radius: 14px; padding: 18px; text-decoration: none; color: inherit; display: block; border: 1px solid #e2e8f0; }
+        .budget-header { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 8px; }
+        .progress-bar { background: #e2e8f0; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 10px; }
+        .progress-fill { background: #2563eb; height: 100%; }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div>
+            <span style="color: #64748b; font-size: 0.85rem;">Welcome back</span>
+            <h1>Hi, {{ user_name }} 👋</h1>
+        </div>
+        <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-bottom: 12px;">+ Create New Budget</h3>
+        <form action="{{ url_for('create_budget') }}" method="POST">
+            <input type="text" name="title" placeholder="Budget Type (e.g. Goa Trip, Mall Shopping)" required>
+            <input type="number" name="target_amount" step="0.01" placeholder="Target Amount ₹ (e.g. 10000)">
+            <button type="submit" class="btn">Add Budget</button>
+        </form>
+    </div>
+
+    <h3 style="margin: 20px 0 12px; color: #475569;">Your Budgets</h3>
+
+    <div class="budget-grid">
+        {% for b in budgets %}
+        <a href="{{ url_for('budget_detail', budget_id=b.id) }}" class="budget-card">
+            <div class="budget-header">
+                <span>{{ b.title }}</span>
+                <span style="color: #2563eb;">₹{{ "%.0f"|format(b.total_spent) }} / ₹{{ "%.0f"|format(b.target_amount) }}</span>
+            </div>
+            {% set percent = (b.total_spent / b.target_amount * 100) if b.target_amount > 0 else 0 %}
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: {{ percent if percent <= 100 else 100 }}%;"></div>
+            </div>
+        </a>
+        {% else %}
+        <p style="color: #94a3b8; text-align: center; margin-top: 20px;">No budgets created yet.</p>
+        {% endfor %}
+    </div>
+</body>
+</html>
