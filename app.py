@@ -9,7 +9,6 @@ DB_FILE = "expenses.db"
 def init_db():
     with sqlite3.connect(DB_FILE) as conn:
         cursor = conn.cursor()
-        # Users Table (Supports Email or Phone)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -17,7 +16,6 @@ def init_db():
                 identifier TEXT UNIQUE NOT NULL
             )
         """)
-        # Budgets linked to User ID
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS budgets (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -27,7 +25,6 @@ def init_db():
                 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
             )
         """)
-        # Expenses linked to Budget ID
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS expenses (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,7 +43,7 @@ init_db()
 def login():
     if request.method == "POST":
         name = request.form.get("name")
-        identifier = request.form.get("identifier")  # Email or Phone Number
+        identifier = request.form.get("identifier")
         
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
@@ -154,7 +151,7 @@ def budget_detail(budget_id):
         total_spent = sum(item["amount"] for item in expenses)
         remaining = budget["target_amount"] - total_spent
 
-    return render_template("budget_detail.html", budget=budget, expenses=expenses, total_spent=total_spent, remaining=remaining)
+    return render_template("detail.html", budget=budget, expenses=expenses, total_spent=total_spent, remaining=remaining)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
