@@ -1,158 +1,132 @@
-import os
-import sqlite3
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, flash
+import random
 
 app = Flask(__name__)
-app.secret_key = "super-secret-key-change-this"
-DB_FILE = "expenses.db"
+# Secure secret key required to sign session cookies
+app.secret_key = 'replace_this_with_a_secure_random_key'
 
-def init_db():
-    with sqlite3.connect(DB_FILE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                identifier TEXT UNIQUE NOT NULL
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS budgets (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                title TEXT NOT NULL,
-                target_amount REAL DEFAULT 0.0,
-                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS expenses (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                budget_id INTEGER NOT NULL,
-                category TEXT NOT NULL,
-                amount REAL NOT NULL,
-                note TEXT,
-                FOREIGN KEY (budget_id) REFERENCES budgets (id) ON DELETE CASCADE
-            )
-        """)
-        conn.commit()
+# In-memory storage (Replace with a database like SQLite/PostgreSQL in production)
+# Structure: { phone_number: user_id }
+users_db = {} 
 
-init_db()
+# Structure: { phone_number: "123456" }
+otp_store = {} 
 
-@app.route("/login", methods=["GET", "POST"])
+# Structure: { user_id: [ {"id": 1, "title": "Groceries", "amount": 150}, ... ] }
+user_budgets_db = {} 
+
+@app.route('/')
+def home():
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+    return redirect(url_for('login'))
+
+@app.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == "POST":
-        name = request.form.get("name")
-        identifier = request.form.get("identifier")
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
         
-        with sqlite3.connect(DB_FILE) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT id, name FROM users WHERE identifier = ?", (identifier,))
-            user = cursor.fetchone()
+    if request.method == 'POST':
+        phone = request.form.get('phone', '').strip()
+        
+        if not phone or len(phone) < 10:
+            flash("Please enter a valid phone number.")
+            return render_template('login.html')
             
-            if not user:
-                cursor.execute("INSERT INTO users (name, identifier) VALUES (?, ?)", (name, identifier))
-                conn.commit()
-                user_id = cursor.lastrowid
-            else:
-                user_id = user[0]
-                name = user[1]
+        # Generate random 6-digit OTP
+        otp = str(random.randint(100000, 999999))
+        otp_store[phone] = otp
+        
+        # SIMULATION: In production, integrate an SMS gateway API here (e.g., Twilio / Fast2SMS)
+        print(f"==============================")
+        print(f"OTP FOR {phone} IS: {otp}")
+        print(f"==============================")
+        
+        return render_template('verify_otp.html', phone=phone)
+        
+    return render_template('login.html')
 
-            session["user_id"] = user_id
-            session["user_name"] = name
-            return redirect(url_for("dashboard"))
+@app.route('/verify-otp', methods=['POST'])
+def verify_otp():
+    phone = request.form.get('phone', '').strip()
+    entered_otp = request.form.get('otp', '').strip()
+    
+    # Validate OTP
+    if phone in otp_store and otp_store[phone] == entered_otp:
+        # Clear temporary OTP from memory
+        del otp_store[phone]
+        
+        # Create user if logging in for the first time
+        if phone not in users_db:
+            new_user_id = len(users_db) + 1
+            users_db[phone] = new_user_id
+            user_budgets_db[new_user_id] = []
+            
+        # Assign private session variables for this specific browser context
+        session['user_id'] = users_db[phone]
+        session['phone'] = phone
+        
+        return redirect(url_for('dashboard'))
+    else:
+        flash("Invalid or expired OTP. Please try again.")
+        return render_template('verify_otp.html', phone=phone)
 
-    return render_template("login.html")
-
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect(url_for("login"))
-
-@app.route("/")
+@app.route('/dashboard')
 def dashboard():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-    
-    user_id = session["user_id"]
-    
-    with sqlite3.connect(DB_FILE) as conn:
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+    # Enforce authentication guard
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
         
-        cursor.execute("""
-            SELECT b.id, b.title, b.target_amount, 
-                   COALESCE(SUM(e.amount), 0) AS total_spent
-            FROM budgets b
-            LEFT JOIN expenses e ON b.id = e.budget_id
-            WHERE b.user_id = ?
-            GROUP BY b.id
-            ORDER BY b.id DESC
-        """, (user_id,))
-        budgets = cursor.fetchall()
-
-    return render_template("dashboard.html", user_name=session["user_name"], budgets=budgets)
-
-@app.route("/budget/create", methods=["POST"])
-def create_budget():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
+    user_id = session['user_id']
     
-    title = request.form.get("title")
-    target = request.form.get("target_amount", 0.0)
+    # Retrieve ONLY the logged-in user's budgets
+    current_user_budgets = user_budgets_db.get(user_id, [])
     
-    if title:
-        with sqlite3.connect(DB_FILE) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "INSERT INTO budgets (user_id, title, target_amount) VALUES (?, ?, ?)",
-                (session["user_id"], title, float(target) if target else 0.0)
-            )
-            conn.commit()
-            
-    return redirect(url_for("dashboard"))
+    return render_template('dashboard.html', 
+                           phone=session.get('phone'), 
+                           budgets=current_user_budgets)
 
-@app.route("/budget/<int:budget_id>", methods=["GET", "POST"])
-def budget_detail(budget_id):
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    with sqlite3.connect(DB_FILE) as conn:
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-
-        if request.method == "POST":
-            if "add_expense" in request.form:
-                category = request.form.get("category")
-                amount = request.form.get("amount")
-                note = request.form.get("note")
-                if category and amount:
-                    cursor.execute(
-                        "INSERT INTO expenses (budget_id, category, amount, note) VALUES (?, ?, ?, ?)",
-                        (budget_id, category, float(amount), note)
-                    )
-                    conn.commit()
-
-            elif "delete_expense" in request.form:
-                e_id = request.form.get("expense_id")
-                cursor.execute("DELETE FROM expenses WHERE id = ?", (e_id,))
-                conn.commit()
-
-            return redirect(url_for("budget_detail", budget_id=budget_id))
-
-        cursor.execute("SELECT * FROM budgets WHERE id = ? AND user_id = ?", (budget_id, session["user_id"]))
-        budget = cursor.fetchone()
+@app.route('/add-budget', methods=['POST'])
+def add_budget():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
         
-        if not budget:
-            return redirect(url_for("dashboard"))
+    user_id = session['user_id']
+    title = request.form.get('title', '').strip()
+    amount = request.form.get('amount', '').strip()
+    
+    if title and amount:
+        budget_id = len(user_budgets_db[user_id]) + 1
+        user_budgets_db[user_id].append({
+            "id": budget_id,
+            "title": title,
+            "amount": float(amount)
+        })
+        
+    return redirect(url_for('dashboard'))
 
-        cursor.execute("SELECT * FROM expenses WHERE budget_id = ? ORDER BY id DESC", (budget_id,))
-        expenses = cursor.fetchall()
-        total_spent = sum(item["amount"] for item in expenses)
-        remaining = budget["target_amount"] - total_spent
+@app.route('/detail/<int:budget_id>')
+def detail(budget_id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+        
+    user_id = session['user_id']
+    user_budgets = user_budgets_db.get(user_id, [])
+    
+    # Ensure the user can only view their own budget details
+    budget = next((b for b in user_budgets if b['id'] == budget_id), None)
+    
+    if not budget:
+        flash("Budget item not found or unauthorized access.")
+        return redirect(url_for('dashboard'))
+        
+    return render_template('detail.html', budget=budget, phone=session.get('phone'))
 
-    return render_template("detail.html", budget=budget, expenses=expenses, total_spent=total_spent, remaining=remaining)
+@app.route('/logout')
+def logout():
+    # Completely purge session data to isolate users on logout
+    session.clear()
+    return redirect(url_for('login'))
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+if __name__ == '__main__':
+    app.run(debug=True)
