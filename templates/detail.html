@@ -2,16 +2,49 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Budget Detail</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detail - Budget Tracker</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f4f7f6; color: #333; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .detail-card { background: #ffffff; padding: 35px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); width: 100%; max-width: 420px; }
+        .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #ecf0f1; padding-bottom: 10px; }
+        h2 { color: #2c3e50; font-size: 22px; }
+        .detail-row { margin-bottom: 15px; display: flex; justify-content: space-between; font-size: 15px; }
+        .detail-label { font-weight: 600; color: #7f8c8d; }
+        .detail-value { font-weight: 700; color: #2c3e50; }
+        .back-btn { display: inline-block; width: 100%; text-align: center; padding: 10px; background-color: #ecf0f1; color: #2c3e50; text-decoration: none; border-radius: 6px; font-weight: 600; margin-top: 20px; }
+        .back-btn:hover { background-color: #bdc3c7; }
+    </style>
 </head>
 <body>
-    <h2>Budget Details</h2>
-    <a href="/">Back to Dashboard</a>
-    
-    <hr>
+    <div class="detail-card">
+        <div class="header-row">
+            <h2>Budget Details</h2>
+        </div>
 
-    <h3>{{ budget.title }}</h3>
-    <p><strong>ID:</strong> {{ budget.id }}</p>
-    <p><strong>Allocated Amount:</strong> ${{ "%.2f"|format(budget.amount) }}</p>
+        {% if budget %}
+            <div class="detail-row">
+                <span class="detail-label">Entry ID:</span>
+                <span class="detail-value">#{{ budget.id }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Item Title:</span>
+                <span class="detail-value">{{ budget.title }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Category:</span>
+                <span class="detail-value">{{ budget.category }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Allocated Amount:</span>
+                <span class="detail-value" style="color: #2ecc71;">${{ "%.2f"|format(budget.amount) }}</span>
+            </div>
+        {% else %}
+            <p style="color: #e74c3c;">Requested budget record was not found.</p>
+        {% endif %}
+
+        <a href="/dashboard" class="back-btn">&larr; Return to Dashboard</a>
+    </div>
 </body>
 </html>
