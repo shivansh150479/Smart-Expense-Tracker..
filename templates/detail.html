@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ budget.title }}</title>
+    <style>
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; }
+        body { background-color: #f1f5f9; color: #0f172a; padding: 20px; max-width: 480px; margin: 0 auto; }
+        .card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03); margin-bottom: 16px; }
+        .back-btn { color: #2563eb; text-decoration: none; font-size: 0.9rem; font-weight: 600; display: inline-block; margin-bottom: 12px; }
+        input { width: 100%; padding: 10px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem; margin-bottom: 10px; }
+        .btn { width: 100%; background: #2563eb; color: white; border: none; padding: 10px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+        .expense-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
+    </style>
+</head>
+<body>
+    <a href="{{ url_for('dashboard') }}" class="back-btn">← Back to Dashboard</a>
+    
+    <div class="card">
+        <h2>{{ budget.title }}</h2>
+        <p style="margin-top: 8px; color: #64748b;">Target: ₹{{ "%.2f"|format(budget.target_amount) }}</p>
+        <p style="color: #ef4444; font-weight: 600;">Spent: ₹{{ "%.2f"|format(total_spent) }}</p>
+        <p style="color: #10b981; font-weight: 600;">Remaining: ₹{{ "%.2f"|format(remaining) }}</p>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-bottom: 12px;">Add Expense</h3>
+        <form method="POST">
+            <input type="text" name="category" placeholder="Category (e.g. Food, Flight)" required>
+            <input type="number" name="amount" step="0.01" placeholder="Amount (₹)" required>
+            <input type="text" name="note" placeholder="Note (Optional)">
+            <button type="submit" name="add_expense" class="btn">Add Expense</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3 style="margin-bottom: 12px;">Expenses</h3>
+        {% for e in expenses %}
+        <div class="expense-item">
+            <div>
+                <strong>{{ e.category }}</strong>
+                {% if e.note %}<br><small style="color: #64748b;">{{ e.note }}</small>{% endif %}
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="color: #ef4444; font-weight: 600;">-₹{{ "%.2f"|format(e.amount) }}</span>
+                <form method="POST" style="display:inline;">
+                    <input type="hidden" name="expense_id" value="{{ e.id }}">
+                    <button type="submit" name="delete_expense" style="background:none; border:none; color:red; cursor:pointer;">✕</button>
+                </form>
+            </div>
+        </div>
+        {% else %}
+        <p style="color: #94a3b8; font-size: 0.9rem;">No expenses recorded yet.</p>
+        {% endfor %}
+    </div>
+</body>
+</html>
