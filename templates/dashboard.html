@@ -2,34 +2,82 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Budget Tracker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Budget Tracker</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f4f7f6; color: #333; }
+        .navbar { background-color: #2c3e50; color: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
+        .navbar h2 { font-size: 20px; }
+        .logout-btn { color: #ecf0f1; text-decoration: none; padding: 6px 12px; border: 1px solid #ecf0f1; border-radius: 4px; font-size: 14px; }
+        .logout-btn:hover { background-color: #ecf0f1; color: #2c3e50; }
+        .container { max-width: 900px; margin: 30px auto; padding: 0 20px; }
+        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 25px; }
+        .card h3 { margin-bottom: 15px; color: #2c3e50; font-size: 18px; border-bottom: 2px solid #ecf0f1; padding-bottom: 8px; }
+        .form-row { display: flex; gap: 10px; flex-wrap: wrap; }
+        .form-row input, .form-row select { flex: 1; min-width: 150px; padding: 10px; border: 1px solid #ccc; border-radius: 6px; }
+        .add-btn { padding: 10px 20px; background-color: #3498db; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; }
+        .add-btn:hover { background-color: #2980b9; }
+        .budget-list { list-style: none; }
+        .budget-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-bottom: 1px solid #eee; }
+        .budget-item:last-child { border-bottom: none; }
+        .budget-info { display: flex; gap: 15px; align-items: center; }
+        .category-badge { background-color: #e8f4f8; color: #2980b9; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+        .view-link { color: #3498db; text-decoration: none; font-size: 14px; font-weight: 600; }
+        .view-link:hover { text-decoration: underline; }
+        .summary-box { background-color: #2ecc71; color: white; padding: 15px 20px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .summary-box h4 { font-size: 16px; }
+        .summary-box span { font-size: 22px; font-weight: 700; }
+    </style>
 </head>
 <body>
-    <h2>Budget Tracker</h2>
-    
-    <hr>
+    <div class="navbar">
+        <h2>Budget Dashboard</h2>
+        <a href="/login" class="logout-btn">Logout</a>
+    </div>
 
-    <h3>Add New Budget Entry</h3>
-    <form action="/add-budget" method="POST">
-        <input type="text" name="title" placeholder="Budget Title" required>
-        <input type="number" step="0.01" name="amount" placeholder="Amount" required>
-        <button type="submit">Add Budget</button>
-    </form>
+    <div class="container">
+        <div class="summary-box">
+            <h4>Total Allocated Budget</h4>
+            <span>${{ "%.2f"|format(total_amount) }}</span>
+        </div>
 
-    <hr>
+        <div class="card">
+            <h3>Add New Budget Item</h3>
+            <form action="/add-budget" method="POST" class="form-row">
+                <input type="text" name="title" placeholder="Item Name / Title" required>
+                <input type="number" step="0.01" name="amount" placeholder="Amount ($)" required>
+                <select name="category">
+                    <option value="General">General</option>
+                    <option value="Groceries">Groceries</option>
+                    <option value="Utilities">Utilities</option>
+                    <option value="Entertainment">Entertainment</option>
+                </select>
+                <button type="submit" class="add-btn">Add Item</button>
+            </form>
+        </div>
 
-    <h3>All Budgets</h3>
-    {% if budgets %}
-        <ul>
-        {% for b in budgets %}
-            <li>
-                <strong>{{ b.title }}</strong>: ${{ "%.2f"|format(b.amount) }}
-                - <a href="/detail/{{ b.id }}">View Details</a>
-            </li>
-        {% endfor %}
-        </ul>
-    {% else %}
-        <p>No budget records found. Add one above!</p>
-    {% endif %}
+        <div class="card">
+            <h3>Budget Entries</h3>
+            {% if budgets %}
+                <ul class="budget-list">
+                {% for b in budgets %}
+                    <li class="budget-item">
+                        <div class="budget-info">
+                            <span class="category-badge">{{ b.category }}</span>
+                            <strong>{{ b.title }}</strong>
+                        </div>
+                        <div>
+                            <span style="margin-right: 15px; font-weight: 600;">${{ "%.2f"|format(b.amount) }}</span>
+                            <a href="/detail/{{ b.id }}" class="view-link">View Details</a>
+                        </div>
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <p style="color: #7f8c8d; text-align: center; padding: 20px 0;">No budget entries recorded yet.</p>
+            {% endif %}
+        </div>
+    </div>
 </body>
 </html>
